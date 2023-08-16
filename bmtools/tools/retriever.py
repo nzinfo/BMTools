@@ -1,4 +1,4 @@
-from langchain.embeddings import OpenAIEmbeddings
+from langchain.embeddings import OpenAIEmbeddings, LlamaCppEmbeddings
 from typing import List, Dict
 from queue import PriorityQueue
 import os
@@ -9,7 +9,7 @@ class Retriever:
                  model: str = "text-embedding-ada-002"):
         if openai_api_key is None:
             openai_api_key = os.environ.get("OPENAI_API_KEY")
-        self.embed = OpenAIEmbeddings(openai_api_key=openai_api_key, model=model)
+        self.embed = LlamaCppEmbeddings(model_path=openai_api_key) # OpenAIEmbeddings(openai_api_key=openai_api_key,deployment=None) # , model="llama-2")  # , model=model)
         self.documents = dict()
 
     def add_tool(self, tool_name: str, api_info: Dict) -> None:

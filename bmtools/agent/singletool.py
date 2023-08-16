@@ -11,7 +11,8 @@ from bmtools.agent.executor import Executor, AgentExecutorWithTranslation
 from bmtools import get_logger
 from bmtools.agent.BabyagiTools import BabyAGI
 # from bmtools.models.customllm import CustomLLM
-
+from bmtools.models.llama_model import LlamaModel
+from bmtools.models.llama_model2 import LlamaCpp
 
 logger = get_logger(__name__)
 
@@ -81,9 +82,14 @@ class STQuestionAnswerer:
         logger.info("Using {}".format(self.llm_model))
         
         if self.llm_model == "GPT-3.5":
-            self.llm = OpenAI(temperature=0.0, openai_api_key=key)  # use text-darvinci
+            #self.llm = OpenAI(temperature=0.0, openai_api_key=key)  # use text-darvinci
+            #self.llm = LlamaModel(key)
+            self.llm = LlamaCpp(model_path=key, temperature=0.75,
+                                n_ctx=2000, max_tokens=4096, top_p=1, verbose=True)
         elif self.llm_model == "ChatGPT":
-            self.llm = OpenAI(model_name="gpt-3.5-turbo", temperature=0.0, openai_api_key=key)  # use chatgpt
+            #self.llm = OpenAI(model_name="gpt-3.5-turbo", temperature=0.0, openai_api_key=key)  # use chatgpt
+            self.llm = LlamaCpp(model_path=key, temperature=0.75,
+                                n_ctx=2000, max_tokens=4096, top_p=1, verbose=True)
         else:
             raise RuntimeError("Your model is not available.")
         

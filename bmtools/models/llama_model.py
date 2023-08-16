@@ -11,7 +11,7 @@ class LlamaModel(LLM):
     model: AutoModelForCausalLM = None
     use_gpu: bool = True
 
-    def __init__(self, model_name_or_path: str, device: str="cuda", cpu_offloading: bool=False) -> None:
+    def __init__(self, model_name_or_path: str, device: str="cpu", cpu_offloading: bool=False) -> None:
         super().__init__()
         self.model_name = model_name_or_path
         self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, use_fast=False)
