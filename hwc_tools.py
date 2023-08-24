@@ -16,7 +16,6 @@ import time
 
 import argparse
 import requests
-from fabric import Connection
 
 # 定义 API 访问的 ENDPOINT , 参考 https://support.huaweicloud.com/api-iam/iam_01_0004.html
 EndPoint = "cn-east-3.myhuaweicloud.com"  # 华为云 上海-1 区域
@@ -200,6 +199,7 @@ def list_ecs(args, list_servers=True):
 def resize_ecs(token, instance_id, flavor_id):
     # expand_ecs 与 shrink_ecs 在 API 调用上相同，不同的只有实例规格的 ID .
     # Ref: https://support.huaweicloud.com/api-ecs/ecs_02_0210.html
+
     # 构造请求
     url = "https://ecs.{}/v1/{}/cloudservers/{}/resize".format(EndPoint, DefaultProject["id"], instance_id)
     headers = {"Content-Type": "application/json", "X-Auth-Token": token}
@@ -324,7 +324,17 @@ def shrink_ecs(args):
 
 
 def restart_ecs(args):
+    global DefaultECS
+
     # 借助 Fabric 远程启动诸服务
+    from fabric import Connection   # 考虑到部分机器，特别是 Windows 安装 fabric 可能有困难。处理成按需引入。
+    from invoke.exceptions import UnexpectedExit
+
+    # 读取参数开关
+    llm = args.llm
+    tool = args.tool
+    web = args.web
+
     # 暂时只支持 控制 DefaultECS
     # 获取 DefaultECS 的 公网 IP 地址
     if DefaultECS is None:
@@ -348,15 +358,50 @@ def restart_ecs(args):
         raise PermissionError("Password is not set, change ENV[ECS_PASSWORD]")
 
     conn = Connection(server_ip, user='llama', connect_kwargs={"password": user_password})
-    # 启动 llm 服务
-    conn.sudo("ls /root", password=user_password)   # 确保 sudo 不需要密码
-    # 启动 tool server
-    # python3 -m llama_cpp.server --model ./llama-2-7b-chat.ggmlv3.q8_0.bin --port 8000
-    # OPENAI_API_KEY=../llama-2-7b-chat.ggmlv3.q8_0.bin OPENAI_API_BASE="http://127.0.0.1:8000/v1" conda run -n bmtools python host_local_tools.py
-    # FIXME 调整为可用的 shell 脚本，并且借助 screen 启动
-    # 需要等待确保 tool server 完全启动后，再启动 web
-    # 启动 web
-    # OPENAI_API_KEY=../llama-2-7b-chat.ggmlv3.q8_0.bin OPENAI_API_BASE="http://127.0.0.1:8000/v1" conda run -n bmtools python web_demo.py
+
+    if False:
+        # 测试启动 web 服务
+        cmd = 'screen -dmS web bash -c "python3 -m http.server 6001"'
+        conn.sudo(cmd, password=user_password)   # 确保 sudo 不需要密码
+        # 借助 screen 删除 session
+        # screen -X -S web quit
+
+    # llm 服务
+    if llm:
+        # 删除名称为 llm 的 screen session
+        conn.sudo('screen -X llm quit', password=user_password)
+        # 启动 llm 服务
+        cmd = 'screen -dmS llm bash -c "cd /root && /root/miniconda3/condabin/conda run -n llama python3 -m llama_cpp.server --model /root/llama-2-7b-chat.ggmlv3.q8_0.bin --port 8000"'
+        # 注意: bash -c 环境下，conda 的搜索路径并未设置，需要给出绝对路径, -L 记录日志到 screenlog.0
+        conn.sudo(cmd, password=user_password)   # 确保 sudo 不需要密码
+
+    # tool server
+    if tool:
+        # 删除名称为 tool 的 screen session
+        try:
+            conn.sudo('screen -X tool quit', password=user_password)
+        except UnexpectedExit:
+            pass   # 没有找到 screen session
+
+        # 启动 tool server
+        cmd = 'screen -L -dmS tool bash -c "cd /root && bash /root/start_local_tools.sh"'
+        conn.sudo(cmd, password=user_password)   # 确保 sudo 不需要密码
+
+    # web server
+    if web:
+        # 删除名称为 web 的 screen session
+        try:
+            conn.sudo('screen -X web quit', password=user_password)
+        except UnexpectedExit:
+            pass
+        # 启动 web server
+        # FIXME: 实际 web 启动时，需要先确保 tool 服务，然后再启动 web 服务
+        # 暂时默认不启动 web ，需要额外命令启动
+        cmd = 'screen -L -dmS web bash -c "cd /root && bash /root/start_web.sh"'
+        conn.sudo(cmd, password=user_password)   # 确保 sudo 不需要密码
+
+    # 启动完毕后，列出所有的 screen.
+    conn.sudo('screen -ls', password=user_password)
     pass
 
 
@@ -378,6 +423,10 @@ def main():
 
     parser_restart = sub_parser.add_parser("restart", help="restart ecs.")
     parser_restart.add_argument("instance_id", nargs="?", help="ecs instance id.")
+    parser_restart.add_argument("--llm", action="store_true", help="restart llm server.")
+    parser_restart.add_argument("--tool", action="store_true", help="restart tool server.")
+    parser_restart.add_argument("--web", action="store_true", help="restart web server.")
+
     parser_restart.set_defaults(func=restart_ecs)
 
     args = parser.parse_args()
