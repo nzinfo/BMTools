@@ -73,6 +73,9 @@ class STQuestionAnswerer:
         self.openai_api_key = openai_api_key
         self.llm_model = llm
 
+        n_gpu_layers = os.environ.get('GPU_LAYERS', 0)
+        self.n_gpu_layers = n_gpu_layers
+
         self.set_openai_api_key(openai_api_key)
         self.stream_output = stream_output
         
@@ -84,11 +87,11 @@ class STQuestionAnswerer:
         if self.llm_model == "GPT-3.5":
             #self.llm = OpenAI(temperature=0.0, openai_api_key=key)  # use text-darvinci
             #self.llm = LlamaModel(key)
-            self.llm = LlamaCpp(model_path=key, temperature=0.75,
+            self.llm = LlamaCpp(model_path=key, temperature=0.75, n_gpu_layers=self.n_gpu_layers,
                                 n_ctx=2000, max_tokens=4096, top_p=1, verbose=True)
         elif self.llm_model == "ChatGPT":
             #self.llm = OpenAI(model_name="gpt-3.5-turbo", temperature=0.0, openai_api_key=key)  # use chatgpt
-            self.llm = LlamaCpp(model_path=key, temperature=0.75,
+            self.llm = LlamaCpp(model_path=key, temperature=0.75, n_gpu_layers=self.n_gpu_layers,
                                 n_ctx=2000, max_tokens=4096, top_p=1, verbose=True)
         else:
             raise RuntimeError("Your model is not available.")
